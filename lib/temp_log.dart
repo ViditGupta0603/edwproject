@@ -11,6 +11,7 @@ class TemperatureLoggerPage extends StatefulWidget {
 class _TemperatureLoggerPageState extends State<TemperatureLoggerPage> {
   final _dbRef = FirebaseDatabase.instance.ref('logs');
   List<Map<String, dynamic>> _logs = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -28,11 +29,13 @@ class _TemperatureLoggerPageState extends State<TemperatureLoggerPage> {
         data.forEach((key, value) {
           try {
             final log = Map<String, dynamic>.from(value);
-            // Optional: Validate required fields
-            if (log['temperature'] != null && log['humidity'] != null && log['timestamp'] != null) {
+
+            if (log.containsKey('temperature') &&
+                log.containsKey('humidity') &&
+                log.containsKey('timestamp')) {
               loadedLogs.add(log);
             } else {
-              debugPrint("Skipped log $key due to missing fields.");
+              debugPrint("Skipped log $key: missing fields");
             }
           } catch (e) {
             debugPrint("Error parsing log $key: $e");
@@ -47,33 +50,63 @@ class _TemperatureLoggerPageState extends State<TemperatureLoggerPage> {
 
         setState(() {
           _logs = loadedLogs;
+          _isLoading = false;
         });
       } else {
+        setState(() {
+          _logs = [];
+          _isLoading = false;
+        });
         debugPrint("No data found at 'logs'");
       }
     });
   }
 
-
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     return Scaffold(
-      appBar: AppBar(title: const Text('Temperature Logs')),
-      body: _logs.isEmpty
-          ? const Center(child: Text('No data available'))
-          : ListView.builder(
-        itemCount: _logs.length,
-        itemBuilder: (context, index) {
-          final log = _logs[index];
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: ListTile(
-              title: Text('Temp: ${log['temperature']}°C | Humidity: ${log['humidity']}%'),
-              subtitle: Text('Timestamp: ${log['timestamp']}'),
-            ),
-          );
-        },
+      backgroundColor: const Color.fromARGB(255, 75, 75, 75),
+      appBar: AppBar(
+        title: Text('Temperature Logs',style: TextStyle(color: Colors.white,fontSize: screenWidth*0.06,fontWeight: FontWeight.w700),),
+        backgroundColor: Colors.grey[800],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.info, color: Colors.white),
+            onPressed: () {},
+          ),
+        ],
       ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.grey))
+          : _logs.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No data available',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: _logs.length,
+                  itemBuilder: (context, index) {
+                    final log = _logs[index];
+                    return Card(
+                      color: Colors.grey[800],
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: ListTile(
+                        title: Text(
+                          'Temp: ${log['temperature']}°C | Humidity: ${log['humidity']}%',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        subtitle: Text(
+                          'Timestamp: ${log['timestamp']}',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    );
+                  },
+                ),
     );
   }
 }
