@@ -19,47 +19,88 @@ class _TemperatureLoggerPageState extends State<TemperatureLoggerPage> {
     _fetchLogs();
   }
 
+  // Fetch logs from Firebase Realtime Database
   void _fetchLogs() {
-    _dbRef.onValue.listen((DatabaseEvent event) {
-      final data = event.snapshot.value as Map<dynamic, dynamic>?;
+  _dbRef.onValue.listen((DatabaseEvent event) {
+    final data = event.snapshot.value as Map<dynamic, dynamic>?;
 
-      if (data != null) {
-        final List<Map<String, dynamic>> loadedLogs = [];
+    if (data != null) {
+      final List<Map<String, dynamic>> loadedLogs = [];
 
-        data.forEach((key, value) {
-          try {
-            final log = Map<String, dynamic>.from(value);
+      data.forEach((dateKey, timeEntries) {
+        if (timeEntries is Map<dynamic, dynamic>) {
+          timeEntries.forEach((timeKey, entry) {
+            try {
+              final log = Map<String, dynamic>.from(entry);
 
-            if (log.containsKey('temperature') &&
-                log.containsKey('humidity') &&
-                log.containsKey('timestamp')) {
-              loadedLogs.add(log);
-            } else {
-              debugPrint("Skipped log $key: missing fields");
+              if (log.containsKey('temperature') &&
+                  log.containsKey('humidity') &&
+                  log.containsKey('logTime')) {
+
+                // Convert '14-55-12' to '14:55:12'
+                final formattedTime = (log['logTime'] as String).replaceAll('-', ':');
+                final fullTimestamp = '$dateKey $formattedTime';
+
+                loadedLogs.add({
+                  'temperature': log['temperature'],
+                  'humidity': log['humidity'],
+                  'timestamp': fullTimestamp,
+                });
+              } else {
+                debugPrint("Skipped log $dateKey/$timeKey: missing fields");
+              }
+            } catch (e) {
+              debugPrint("Error parsing log $dateKey/$timeKey: $e");
             }
-          } catch (e) {
-            debugPrint("Error parsing log $key: $e");
-          }
-        });
+          });
+        }
+      });
 
-        loadedLogs.sort((a, b) {
-          final timeA = DateTime.tryParse(a['timestamp'] ?? '') ?? DateTime(0);
-          final timeB = DateTime.tryParse(b['timestamp'] ?? '') ?? DateTime(0);
-          return timeB.compareTo(timeA);
-        });
+      // Sort by full timestamp (descending)
+      loadedLogs.sort((a, b) {
+        final timeA = DateTime.tryParse(a['timestamp'] ?? '') ?? DateTime(0);
+        final timeB = DateTime.tryParse(b['timestamp'] ?? '') ?? DateTime(0);
+        return timeB.compareTo(timeA);
+      });
 
-        setState(() {
-          _logs = loadedLogs;
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _logs = [];
-          _isLoading = false;
-        });
-        debugPrint("No data found at 'logs'");
-      }
-    });
+      setState(() {
+        _logs = loadedLogs;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _logs = [];
+        _isLoading = false;
+      });
+      debugPrint("No data found at 'logs'");
+    }
+  });
+}
+
+
+
+  // Helper function to parse date from timestamp (YYYY-MM-DD format)
+  DateTime _parseDate(String timestamp) {
+    try {
+      return DateTime.parse(timestamp.split(' ')[0]); // Extract date part (YYYY-MM-DD)
+    } catch (e) {
+      debugPrint("Error parsing date: $e");
+      return DateTime(0); // Return a fallback date in case of error
+    }
+  }
+
+  // Helper function to parse time from logTime (hh-mm-ss format)
+  DateTime _parseTime(String logTime) {
+    try {
+      final parts = logTime.split('-');
+      final hours = int.parse(parts[0]);
+      final minutes = int.parse(parts[1]);
+      final seconds = int.parse(parts[2]);
+      return DateTime(0, 1, 1, hours, minutes, seconds); // Construct time as DateTime object
+    } catch (e) {
+      debugPrint("Error parsing time: $e");
+      return DateTime(0); // Return a fallback time in case of error
+    }
   }
 
   // Function to show the info dialog
